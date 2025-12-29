@@ -39,3 +39,30 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# hardhat
+cache/
+artifacts/
+typechain/
+typechain-types/
+coverage.json
+
+# testing additional
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+
+# dependencies additional
+.pnpm-store/
+
+# build additional
+dist/
+

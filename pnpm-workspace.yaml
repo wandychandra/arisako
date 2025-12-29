@@ -4,3 +4,7 @@ ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
   - utf-8-validate
+
+onlyBuiltDependencies:
+  - '@arbitrum/nitro-contracts'
+  - secp256k1
