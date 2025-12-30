@@ -12,6 +12,18 @@ const supabase = createClient(
 export default function KycForm() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [docType, setDocType] = useState<string>("dokumen_pendukung");
+
+  const selectStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "0.5rem 0.75rem",
+    borderRadius: 8,
+    backgroundColor: "#f8fafc", // slate-50
+    color: "#0f172a", // slate-900
+    border: "1px solid #cbd5e1", // slate-300
+    boxShadow: "inset 0 1px 2px rgba(0,0,0,0.04)",
+    fontWeight: 500,
+  };
 
   // --- STYLE DEFINITIONS (Sama seperti sebelumnya) ---
   const fileButtonStyle: React.CSSProperties = {
@@ -45,41 +57,47 @@ export default function KycForm() {
 
   // --- LOGIKA UTAMA ---
   const handleUpload = async () => {
-    if (!file) return alert("Mohon pilih file dulu!");
+    if (!file) return alert("Pilih file!");
     setLoading(true);
 
     try {
-      // 1. UPLOAD FILE (Dilakukan di Client supaya cepat & hemat bandwidth server)
-      // Kita perlu ID sementara di sini cuma buat nama folder
-      const TEMP_ID = "00000000-0000-0000-0000-000000000000";
-      const filePath = `${TEMP_ID}/${Date.now()}_${file.name}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from("ktp") // Pastikan nama bucket sesuai ('ktp' atau 'kyc-documents')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      // 2. PANGGIL API UNTUK SIMPAN DATABASE
-      // Kita kirim filePath-nya saja ke server
-      const response = await fetch("/api/kyc", {
+      // --- LANGKAH 1: Tetap Sama (Minta instruksi ke API) ---
+      const instructionReq = await fetch("/api/kyc", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_path: filePath }),
+        body: JSON.stringify({ fileName: file.name, docType }),
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || "Gagal menghubungi server");
+      if (!instructionReq.ok) {
+        const errorData = await instructionReq.json();
+        throw new Error(errorData.error || "Gagal mendapatkan instruksi");
       }
 
-      alert("KYC Berhasil Disimpan!");
-      setFile(null); // Reset form
+      const { uploadUrl, path } = await instructionReq.json();
 
-    } catch (error: any) {
-      console.error(error);
-      alert("Gagal: " + error.message);
+      // --- LANGKAH 2: GANTI BAGIAN INI (Gunakan Fetch Standar) ---
+      // Kita tidak lagi pakai supabase.storage.uploadToSignedUrl karena JWS error tadi
+      const uploadResponse = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: file,
+        headers: {
+          'Content-Type': file.type, // Menyesuaikan tipe file (image/png, dll)
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        // Jika gagal, coba ambil pesan errornya
+        const errorData = await uploadResponse.json().catch(() => ({}));
+        throw new Error(errorData.message || `Gagal upload ke Storage (${uploadResponse.status})`);
+      }
+
+      // --- SELESAI ---
+      alert("Berhasil! Dokumen " + docType + " telah terupload.");
+      setFile(null);
+
+    } catch (err: any) {
+      console.error("Detail Error:", err);
+      alert(err.message);
     } finally {
       setLoading(false);
     }
@@ -89,13 +107,22 @@ export default function KycForm() {
     <div className="p-6 border rounded shadow max-w-md bg-white text-black">
       <h2 className="text-xl font-bold mb-4">Verifikasi Identitas (KYC)</h2>
 
-      <label className="block mb-2">Foto KTP</label>
+      <label className="block mb-2">Jenis Dokument</label>
+      <select
+        value={docType}
+        onChange={(e) => setDocType(e.target.value)}
+        style={selectStyle}
+      >
+        <option value="ktp">KTP</option>
+        <option value="dokumen_pendukung">Dokumen Pendukung</option>
+      </select>
+
       <div className="flex items-center gap-3 mb-4">
-        <label htmlFor="ktpUpload" style={fileButtonStyle}>
-          Pilih Foto KTP
+        <label htmlFor="fileUpload" style={fileButtonStyle}>
+          Pilih Foto Dokumen
         </label>
         <input
-          id="ktpUpload"
+          id="fileUpload"
           type="file"
           accept="image/*"
           style={{ display: "none" }}

@@ -2,38 +2,70 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Setup Supabase Client untuk Server
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY!
-);
-
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { image_path } = body;
-
-    if (!image_path) {
-      return NextResponse.json({ error: "Image path is required" }, { status: 400 });
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY in .env.local");
     }
 
-    // --- LOGIKA DATABASE & ID PALSU PINDAH KE SINI ---
+    const body = await request.json();
+    console.log("Body diterima:", body);
+
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { fileName, docType } = body;
+
+    if (!fileName || !docType) {
+      return NextResponse.json({ error: "fileName dan docType wajib" }, { status: 400 });
+    }
+
+    // --- PROSES SANITASI NAMA FILE ---
+    const cleanFileName = fileName
+      .replace(/[^a-zA-Z0-9.]/g, '_')
+      .substring(0, 50);
+
     const FAKE_USER_ID = "00000000-0000-0000-0000-000000000000";
+    const filePath = `${FAKE_USER_ID}/${docType}/${Date.now()}_${cleanFileName}`;
+
+    console.log("Path baru yang sudah dibersihkan:", filePath);
+
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("identity-docs")
+      .createSignedUploadUrl(filePath);
+
+    if (uploadError) {
+      console.error("❌ Storage Error:", uploadError.message);
+      throw new Error(`Storage Error: ${uploadError.message}`);
+    }
+
+    console.log("✅ Signed URL Berhasil dibuat");
 
     const { error: dbError } = await supabase
       .from("kyc_requests")
       .insert({
         user_id: FAKE_USER_ID,
-        image_path: image_path,
+        image_path: filePath,
+        document_type: docType,
         status: "pending",
       });
 
-    if (dbError) throw dbError;
+    if (dbError) {
+      console.error("❌ Database Error:", dbError.message);
+      throw new Error(`Database Error: ${dbError.message}`);
+    }
 
-    return NextResponse.json({ success: true, message: "KYC Data Saved" });
+    console.log("✅ Database Insert Berhasil");
+
+    return NextResponse.json({
+      uploadUrl: uploadData.signedUrl,
+      path: filePath,
+    });
 
   } catch (error: any) {
-    console.error("API Error:", error);
+    console.error("💥 CRASH PADA API:", error.message);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
