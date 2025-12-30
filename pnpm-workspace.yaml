@@ -7,4 +7,6 @@ ignoredBuiltDependencies:
 
 onlyBuiltDependencies:
   - '@arbitrum/nitro-contracts'
+  - esbuild
   - secp256k1
+  - supabase
