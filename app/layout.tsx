@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Source_Code_Pro } from "next/font/google";
-import { RootProvider } from "./rootProvider";
 import "./globals.css";
+import { RootProvider } from "./rootProvider";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -26,6 +26,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <link rel="stylesheet" href="/onchainkit.css" />
+      </head>
       <body className={`${inter.variable} ${sourceCodePro.variable}`}>
         <RootProvider>{children}</RootProvider>
       </body>
